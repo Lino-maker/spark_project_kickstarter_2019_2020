@@ -52,7 +52,7 @@ object Trainer {
 
     val df = spark.read.parquet("src/main/resources/dfTest4")
 
-    println("STAGE 1")
+    println("STAGE 1 : récupérer les mots des textes")
     val tokenizer = new RegexTokenizer()
       .setPattern("\\W+")
       .setGaps(true)
@@ -61,7 +61,7 @@ object Trainer {
 
     //val wordsData : DataFrame = tokenizer.transform(df)
 
-    println("STAGE 2")
+    println("STAGE 2 : retirer les stop words")
     val stopWordRemover = new StopWordsRemover()
       .setInputCol(tokenizer.getOutputCol)
       .setOutputCol("filtered")
@@ -69,38 +69,38 @@ object Trainer {
 
     //val wordRemover : DataFrame = stopWordRemover.transform(wordsData)
 
-    println("STAGE 3")
+    println("STAGE 3 : computer la partie TF")
     val countVectorizer = new CountVectorizer()
       .setInputCol(stopWordRemover.getOutputCol)
       .setOutputCol("tf")
 
     //val dfTest = countVectorizer.fit(wordRemover)
 
-    println("STAGE 4")
+    println("STAGE 4 : computer la partie IDF")
     val idf = new IDF().setInputCol(countVectorizer.getOutputCol).setOutputCol("tfidf")
 
-    println("STAGE 5")
+    println("STAGE 5 : convertir country2 en quantité numérique")
     val indexercountry = new StringIndexer()
       .setInputCol("country2")
       .setOutputCol("country_indexed")
 
-    println("STAGE 6")
+    println("STAGE 6 : convertir currency2 en quantité numérique")
     val indexercurrency = new StringIndexer()
       .setInputCol("currency2")
       .setOutputCol("currency_indexed")
 
-    println("STAGE 7 et 8")
+    println("STAGE 7 et 8 : One-Hot encoder ces 2 catégories")
     val encoder = new OneHotEncoderEstimator()
       .setInputCols(Array(indexercountry.getOutputCol, indexercurrency.getOutputCol))
       .setOutputCols(Array("country_onehot", "currency_onehot"))
 
-    println("STAGE 9")
+    println("STAGE 9 : assembler toutes les features en un unique vecteur")
     val assembler = new VectorAssembler()
       .setInputCols(Array("tfidf", "days_campaign", "hours_prepa", "goal",
         "country_onehot", "currency_onehot"))
       .setOutputCol("features")
 
-    println("STAGE 10")
+    println("STAGE 10 : créer / instancier le modèle de classification")
     val lr = new LogisticRegression()
       .setElasticNetParam(0.0)
       .setFitIntercept(true)
@@ -158,6 +158,9 @@ object Trainer {
     dfWithPredictions.groupBy("final_status", "predictions").count.show()
     val f1SimpleScoreCV = cvModel.getEvaluator.evaluate(dfWithPredictions)
     println(f1SimpleScoreCV)
+
+    println(s"Sauvegarde du modèle cross-validated")
+    cvModel.write.overwrite.save("src/main/model/LogisticRegression")
 
 
   }
